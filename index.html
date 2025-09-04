@@ -78,6 +78,20 @@
             </div>
         </div>
 
+        <!-- JSON İşlemleri -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">JSON Verisi İşlemleri</h2>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button id="export-button" class="w-full sm:w-auto flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
+                    Verileri İndir (JSON Export)
+                </button>
+                <label for="import-file" class="w-full sm:w-auto flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 cursor-pointer">
+                    Veri Yükle (JSON Import)
+                </label>
+                <input type="file" id="import-file" class="hidden" accept=".json">
+            </div>
+        </div>
+
         <!-- Kayıtlı Araçların Listesi -->
         <div class="bg-white p-6 rounded-lg shadow">
             <h2 class="text-xl font-semibold text-gray-700 mb-4">Kayıtlı Araçlar</h2>
@@ -101,6 +115,8 @@
         const searchResultsContainer = document.getElementById('search-results-container');
         const searchResultsMessage = document.getElementById('search-results-message');
         const messageBox = document.getElementById('message-box');
+        const exportButton = document.getElementById('export-button');
+        const importFile = document.getElementById('import-file');
 
         // Show message box function
         function showMessage(message, type = 'success') {
@@ -117,9 +133,14 @@
 
         // Load tools from localStorage
         function loadTools() {
-            const storedTools = localStorage.getItem(localStorageKey);
-            if (storedTools) {
-                tools = JSON.parse(storedTools);
+            try {
+                const storedTools = localStorage.getItem(localStorageKey);
+                if (storedTools) {
+                    tools = JSON.parse(storedTools);
+                }
+            } catch (error) {
+                console.error('Veri yüklenirken hata oluştu:', error);
+                tools = [];
             }
             renderTools();
         }
@@ -230,6 +251,57 @@
             } else {
                 showMessage("Lütfen bir arama sorgusu girin.", 'error');
             }
+        });
+
+        // JSON Export (Dışa Aktarma)
+        exportButton.addEventListener('click', () => {
+            if (tools.length === 0) {
+                showMessage('Dışa aktarılacak veri yok.', 'error');
+                return;
+            }
+            const dataStr = JSON.stringify(tools, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ai_tools_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showMessage('Veriler başarıyla indirildi!');
+        });
+
+        // JSON Import (İçe Aktarma)
+        importFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedTools = JSON.parse(event.target.result);
+                    if (Array.isArray(importedTools)) {
+                        // Basit bir doğrulama: Her öğenin gerekli alanları var mı?
+                        const isValid = importedTools.every(tool => tool.name && tool.function && tool.link);
+                        if (isValid) {
+                            tools = [...tools, ...importedTools]; // Mevcut verilerle birleştir
+                            saveTools();
+                            renderTools();
+                            showMessage(`${importedTools.length} araç başarıyla yüklendi!`);
+                        } else {
+                            showMessage('Dosya formatı hatalı. Lütfen geçerli bir JSON dosyası seçin.', 'error');
+                        }
+                    } else {
+                        showMessage('Yüklenen dosya geçerli bir JSON formatında değil.', 'error');
+                    }
+                } catch (error) {
+                    console.error('Dosya okunurken hata oluştu:', error);
+                    showMessage('Dosya okunurken bir hata oluştu.', 'error');
+                }
+            };
+            reader.readAsText(file);
         });
 
         // Load tools when the page is loaded
